@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, json
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow
@@ -49,6 +49,7 @@ class Application(QMainWindow):
         self.setStyleSheet('background-color: #888;')
         self.define_constants()
         self.initial_settings()
+        self.load_configuration()
 
     def define_constants(self):
         self.title_font_size = 20
@@ -60,6 +61,9 @@ class Application(QMainWindow):
         self.path_input_valid = False
         self.file_input_valid = True
         self.rarity_input_valid = True
+        self.directory_path = ''
+        self.exceptions_path = ''
+        self.rarity_filename = ''
 
 
     def initial_settings(self):
@@ -142,17 +146,13 @@ class Application(QMainWindow):
         self.rarity_input_status.setAlignment(Qt.AlignCenter)
         self.rarity_input_status.setFont(Lexend(self.status_font_size))
 
-
-        def next():
-            self.path_layout_widget.deleteLater()
-            self.create_interface()
-
         self.next_button = QtWidgets.QPushButton()
         self.next_button.setText('NEXT')
         self.next_button.setFixedWidth(int(0.2 * self.width))
         self.next_button.setMaximumHeight(80)
         self.next_button.setFont(Lexend(self.status_font_size))
-        self.next_button.clicked.connect(next)
+        self.next_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.next_button.clicked.connect(self.next_button_function)
         self.activate_next_button()
 
         button_layout = QtWidgets.QHBoxLayout()
@@ -250,6 +250,37 @@ class Application(QMainWindow):
         self.dialog = QtWidgets.QFileDialog()
         self.dialog, _ = self.dialog.getOpenFileUrl(self, caption='Select JSON file with exceptions', options=options)
         self.file_input.setText(self.dialog.path())
+
+    def next_button_function(self):
+        self.directory_path = self.path_input.text()
+        self.exceptions_path = self.file_input.text()
+        self.rarity_filename = self.rarity_input.text()
+        self.path_layout_widget.deleteLater()
+        self.create_interface()
+        self.save_configuration()
+
+    def save_configuration(self):
+        data = {
+            'directory_path': self.directory_path,
+            'exceptions_path': self.exceptions_path,
+            'rarity_filename': self.rarity_filename
+        }
+        data = json.dumps(data)
+        with open(os.getcwd() + '/config.json', 'w') as conf:
+            conf.write(data)
+
+    def load_configuration(self):
+        if os.path.isfile(os.getcwd() + '/config.json'):
+            try:
+                with open(os.getcwd() + '/config.json', 'r') as conf:
+                    data = conf.read()
+                data = json.loads(data)
+
+                self.path_input.setText(data.get('directory_path'))
+                self.file_input.setText(data.get('exceptions_path'))
+                self.rarity_input.setText(data.get('rarity_filename'))
+            except:
+                pass
 
     def update_path_input_status(self):
         self.path_input_valid = False

@@ -57,6 +57,9 @@ class Application(QMainWindow):
         self.error_color = '#c91414'
         self.warning_color = '#fa0'
         self.correct_color = '#62ff00'
+        self.path_input_valid = False
+        self.file_input_valid = True
+        self.rarity_input_valid = True
 
 
     def initial_settings(self):
@@ -144,19 +147,20 @@ class Application(QMainWindow):
             self.path_layout_widget.deleteLater()
             self.create_interface()
 
-        button = QtWidgets.QPushButton()
-        button.setText('NEXT')
-        button.setFixedWidth(int(0.2 * self.width))
-        button.setMaximumHeight(80)
-        button.setFont(Lexend(self.status_font_size))
-        button.clicked.connect(next)
+        self.next_button = QtWidgets.QPushButton()
+        self.next_button.setText('NEXT')
+        self.next_button.setFixedWidth(int(0.2 * self.width))
+        self.next_button.setMaximumHeight(80)
+        self.next_button.setFont(Lexend(self.status_font_size))
+        self.next_button.clicked.connect(next)
+        self.activate_next_button()
 
         button_layout = QtWidgets.QHBoxLayout()
         button_widget = QtWidgets.QWidget()
         button_widget.setLayout(button_layout)
         button_layout.setAlignment(Qt.AlignCenter)
         button_layout.setContentsMargins(0,50,0,0)
-        button_layout.addWidget(button)
+        button_layout.addWidget(self.next_button)
 
         self.setCentralWidget(self.path_layout_widget)
         self.path_layout.addWidget(path_label)
@@ -248,6 +252,7 @@ class Application(QMainWindow):
         self.file_input.setText(self.dialog.path())
 
     def update_path_input_status(self):
+        self.path_input_valid = False
         path = self.path_input.text()
         if os.path.isdir(path):
             dirs = 0
@@ -264,6 +269,7 @@ class Application(QMainWindow):
             if dirs:
                 if images:
                     self.path_input_status.setText(f'<span style=\'color: {self.correct_color};\'>STATUS: Provided directory is correct! It contains {dirs} subdirectories & {images} PNG images!</span>')
+                    self.path_input_valid = True
                 else:
                     self.path_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: Subdirectories within this directory do NOT contain any PNG images!</span>')
             else:
@@ -278,11 +284,15 @@ class Application(QMainWindow):
         else:
             self.path_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: This path does NOT exist!</span>')
 
+        self.activate_next_button()
+
     def update_file_input_status(self):
+        self.file_input_valid = False
         path = self.file_input.text()
         if os.path.isfile(path):
             if path.split('.')[-1].lower() == 'json':
                 self.file_input_status.setText(f'<span style=\'color: {self.correct_color};\'>STATUS: Provided exceptions file is correct!</span>')
+                self.file_input_valid = True
             else:
                 self.file_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: File\'s extension is invalid! Only JSON files are accepted.</span>')
 
@@ -291,21 +301,35 @@ class Application(QMainWindow):
 
         elif not path:
             self.file_input_status.setText(f'<span style=\'color: {self.warning_color};\'>WARNING: Leaving this field empty means that all combinations are allowed!</span>')
+            self.file_input_valid = True
 
         else:
             self.file_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: This file does NOT exist!</span>')
 
+        self.activate_next_button()
+
 
     def update_rarity_input_status(self):
+        self.rarity_input_valid = False
         text = self.rarity_input.text()
         if text:
             if text.split('.')[-1].lower() == 'json':
                 self.rarity_input_status.setText(f'<span style=\'color: {self.correct_color};\'>STATUS: Provided name is correct!</span>')
+                self.rarity_input_valid = True
             else:
                 self.rarity_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: Only JSON files are accepted!</span>')
 
         else:
             self.rarity_input_status.setText(f'<span style=\'color: {self.warning_color};\'>WARNING: Leaving this field empty means that all of your items have equal rarity!</span>')
+            self.rarity_input_valid = True
+
+        self.activate_next_button()
+
+    def activate_next_button(self):
+        if self.path_input_valid and self.file_input_valid and self.rarity_input_valid:
+            self.next_button.setDisabled(False)
+        else:
+            self.next_button.setDisabled(True)
 
 
 if __name__ == '__main__':

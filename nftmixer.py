@@ -1,5 +1,5 @@
 import sys, os, json
-from PyQt5 import QtWidgets, QtGui
+from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow
 
@@ -49,7 +49,6 @@ class Application(QMainWindow):
         self.setStyleSheet('background-color: #888;')
         self.define_constants()
         self.initial_settings()
-        self.load_configuration()
 
     def define_constants(self):
         self.title_font_size = 20
@@ -176,60 +175,70 @@ class Application(QMainWindow):
         self.path_layout.addWidget(button_widget)
         self.path_layout_widget.show()
 
+        self.load_configuration()
+
 
     def create_interface(self):
         self.main_layout = QtWidgets.QVBoxLayout()
         self.main_layout_widget = QtWidgets.QWidget()
         self.main_layout_widget.setLayout(self.main_layout)
         self.main_layout.setAlignment(Qt.AlignTop)
-        self.main_layout_widget.setStyleSheet('background-color: red') #debug
+        #self.main_layout_widget.setStyleSheet('background-color: red') #debug
 
         self.info_layout = QtWidgets.QVBoxLayout()
         self.info_layout_widget = QtWidgets.QWidget()
         self.info_layout_widget.setLayout(self.info_layout)
         self.info_layout_widget.setMaximumHeight(int(0.4 * self.height))
-        self.info_layout_widget.setStyleSheet('background-color: blue') #debug
+        #self.info_layout_widget.setStyleSheet('background-color: blue') #debug
 
         self.directories_layout = QtWidgets.QHBoxLayout()
         self.directories_layout_widget = QtWidgets.QWidget()
         self.directories_layout_widget.setLayout(self.directories_layout)
-        self.directories_layout_widget.setStyleSheet('background-color: yellow') #debug
+        #self.directories_layout_widget.setStyleSheet('background-color: yellow') #debug
+
+        top_bar_layout = QtWidgets.QHBoxLayout()
+        top_bar_layout_widget = QtWidgets.QWidget()
+        top_bar_layout_widget.setLayout(top_bar_layout)
+        top_bar_layout.setContentsMargins(0,0,0,0)
+
+        self.back_button = QtWidgets.QPushButton()
+        self.back_button.setFixedSize(60, 30)
+        self.back_button.setIcon(QtGui.QIcon('img/back.svg'))
+        icon_size = QtCore.QSize(30, 15)
+        self.back_button.setIconSize(icon_size)
+        self.back_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.back_button.clicked.connect(self.back_button_function)
+
+        centering_help = QtWidgets.QWidget()
+        centering_help.setFixedSize(60, 30)
 
         self.available_directories_label = QtWidgets.QLabel()
         self.available_directories_label.setText('Available directories: 14')
         self.available_directories_label.setAlignment(Qt.AlignCenter)
-        self.available_directories_label.setStyleSheet('background-color: green') #debug
+        #self.available_directories_label.setStyleSheet('background-color: green') #debug
         self.available_directories_label.setFont(Lexend(self.info_font_size))
+
+        top_bar_layout.addWidget(self.back_button)
+        top_bar_layout.addWidget(self.available_directories_label)
+        top_bar_layout.addWidget(centering_help)
 
         self.info_labels = [QtWidgets.QLabel() for _ in range(4)]
         [label.setFont(Lexend(self.status_font_size)) for label in self.info_labels]
         data = ['1. tttasfjalkfjsdafj', '2. adjflasdjflasdj', '3. adsjflkasdjflsdajflsadkj', '4. ajflajdslfjfljasdlfj', '5. asldfjalsjflasjfsa', '6. adlfjaslfjalsfjalsjflsa', '7. lkjdasfoelkmvda;f', '8. la;jf;lajfljfljsadlfk', '9. jflaksjfl', '10. jaslfjldksfjakls;dfj', '11. dadsfasd', '12. adfsdfsd', '13. afasdf', '14. askjfaksldjf']
-
-        index = -1
-        rows = len(data)//4+1 if len(data)%4 else len(data)//4
-        for label in self.info_labels:
-            content = ''
-            for i in range(rows):
-                index += 1
-                if index == len(data):
-                    break
-                content += data[index]
-                if i != rows-1:
-                    content += '\n'
-            label.setText(content)
+        self.update_info_labels(data)
 
         self.summary_info = QtWidgets.QLabel()
         self.summary_info.setText('Total items: 50\nPossible combinations: 12 500')
-        self.summary_info.setStyleSheet('background-color: green') #debug
+        #self.summary_info.setStyleSheet('background-color: green') #debug
         self.summary_info.setAlignment(Qt.AlignCenter)
         self.summary_info.setFont(Lexend(self.status_font_size))
 
         self.setCentralWidget(self.main_layout_widget)
         self.main_layout.addWidget(self.info_layout_widget)
-        self.info_layout.addWidget(self.available_directories_label)
+        self.info_layout.addWidget(top_bar_layout_widget)
         self.info_layout.addWidget(self.directories_layout_widget)
         [self.directories_layout.addWidget(label) for label in self.info_labels]
-        [label.setStyleSheet('background-color: green;') for label in self.info_labels]
+        #[label.setStyleSheet('background-color: green;') for label in self.info_labels]
         self.info_layout.addWidget(self.summary_info)
 
         self.main_layout_widget.show()
@@ -258,6 +267,10 @@ class Application(QMainWindow):
         self.path_layout_widget.deleteLater()
         self.create_interface()
         self.save_configuration()
+
+    def back_button_function(self):
+        self.main_layout_widget.deleteLater()
+        self.initial_settings()
 
     def save_configuration(self):
         data = {
@@ -361,6 +374,20 @@ class Application(QMainWindow):
             self.next_button.setDisabled(False)
         else:
             self.next_button.setDisabled(True)
+
+    def update_info_labels(self, data):
+        index = -1
+        rows = len(data) // 4 + 1 if len(data) % 4 else len(data) // 4
+        for label in self.info_labels:
+            content = ''
+            for i in range(rows):
+                index += 1
+                if index == len(data):
+                    break
+                content += data[index]
+                if i != rows - 1:
+                    content += '\n'
+            label.setText(content)
 
 
 if __name__ == '__main__':

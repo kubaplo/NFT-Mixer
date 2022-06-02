@@ -63,6 +63,7 @@ class Application(QMainWindow):
         self.directory_path = ''
         self.exceptions_path = ''
         self.rarity_filename = ''
+        self.data = {}
 
 
     def initial_settings(self):
@@ -180,21 +181,20 @@ class Application(QMainWindow):
 
     def create_interface(self):
         self.main_layout = QtWidgets.QVBoxLayout()
+        self.main_layout.setAlignment(Qt.AlignTop)
         self.main_layout_widget = QtWidgets.QWidget()
         self.main_layout_widget.setLayout(self.main_layout)
-        self.main_layout.setAlignment(Qt.AlignTop)
-        #self.main_layout_widget.setStyleSheet('background-color: red') #debug
 
         self.info_layout = QtWidgets.QVBoxLayout()
         self.info_layout_widget = QtWidgets.QWidget()
         self.info_layout_widget.setLayout(self.info_layout)
         self.info_layout_widget.setMaximumHeight(int(0.4 * self.height))
-        #self.info_layout_widget.setStyleSheet('background-color: blue') #debug
+        self.info_layout_widget.setObjectName('info-layout-widget')
+        self.info_layout_widget.setStyleSheet('#info-layout-widget {border-bottom: 2px dashed #777;}')
 
         self.directories_layout = QtWidgets.QHBoxLayout()
         self.directories_layout_widget = QtWidgets.QWidget()
         self.directories_layout_widget.setLayout(self.directories_layout)
-        #self.directories_layout_widget.setStyleSheet('background-color: yellow') #debug
 
         top_bar_layout = QtWidgets.QHBoxLayout()
         top_bar_layout_widget = QtWidgets.QWidget()
@@ -213,9 +213,8 @@ class Application(QMainWindow):
         centering_help.setFixedSize(60, 30)
 
         self.available_directories_label = QtWidgets.QLabel()
-        self.available_directories_label.setText('Available directories: 14')
+        self.available_directories_label.setText('')
         self.available_directories_label.setAlignment(Qt.AlignCenter)
-        #self.available_directories_label.setStyleSheet('background-color: green') #debug
         self.available_directories_label.setFont(Lexend(self.info_font_size))
 
         top_bar_layout.addWidget(self.back_button)
@@ -224,25 +223,25 @@ class Application(QMainWindow):
 
         self.info_labels = [QtWidgets.QLabel() for _ in range(4)]
         [label.setFont(Lexend(self.status_font_size)) for label in self.info_labels]
-        data = ['1. tttasfjalkfjsdafj', '2. adjflasdjflasdj', '3. adsjflkasdjflsdajflsadkj', '4. ajflajdslfjfljasdlfj', '5. asldfjalsjflasjfsa', '6. adlfjaslfjalsfjalsjflsa', '7. lkjdasfoelkmvda;f', '8. la;jf;lajfljfljsadlfk', '9. jflaksjfl', '10. jaslfjldksfjakls;dfj', '11. dadsfasd', '12. adfsdfsd', '13. afasdf', '14. askjfaksldjf']
-        self.update_info_labels(data)
+        [label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed) for label in self.info_labels]
 
         self.summary_info = QtWidgets.QLabel()
-        self.summary_info.setText('Total items: 50\nPossible combinations: 12 500')
-        #self.summary_info.setStyleSheet('background-color: green') #debug
+        self.summary_info.setText('')
         self.summary_info.setAlignment(Qt.AlignCenter)
         self.summary_info.setFont(Lexend(self.status_font_size))
+        self.summary_info.setContentsMargins(0,20,0,0)
 
         self.setCentralWidget(self.main_layout_widget)
         self.main_layout.addWidget(self.info_layout_widget)
         self.info_layout.addWidget(top_bar_layout_widget)
         self.info_layout.addWidget(self.directories_layout_widget)
         [self.directories_layout.addWidget(label) for label in self.info_labels]
-        #[label.setStyleSheet('background-color: green;') for label in self.info_labels]
         self.info_layout.addWidget(self.summary_info)
 
         self.main_layout_widget.show()
         self.info_layout_widget.show()
+
+
 
 
 
@@ -264,8 +263,10 @@ class Application(QMainWindow):
         self.directory_path = self.path_input.text()
         self.exceptions_path = self.file_input.text()
         self.rarity_filename = self.rarity_input.text()
+        self.build_data()
         self.path_layout_widget.deleteLater()
         self.create_interface()
+        self.update_general_info()
         self.save_configuration()
 
     def back_button_function(self):
@@ -388,6 +389,48 @@ class Application(QMainWindow):
                 if i != rows - 1:
                     content += '\n'
             label.setText(content)
+
+    def build_data(self):
+        #TODO: Decide whether leave this method here or move to backend file.
+        self.data = {}
+        with os.scandir(self.directory_path) as scan:
+            for file in scan:
+                if file.is_dir():
+                    self.data[file.name] = []
+                    with os.scandir(file.path) as subscan:
+                        for subfile in subscan:
+                            if subfile.is_file() and subfile.name.split('.')[-1].lower() == 'png':
+                                self.data[file.name].append(subfile.name)
+
+    def update_general_info(self):
+        self.available_directories_label.setText(f'<b>Available directories: {len(self.data)}')
+
+        dirs = sorted(self.data.keys())
+        self.update_info_labels([f'{i + 1}. {dirs[i]}' for i in range(len(dirs))])
+
+        total_images = 0
+        possible_combinations = 1
+        for x in self.data.values():
+            total_images += len(x)
+            possible_combinations *= len(x)
+
+        self.summary_info.setText(
+            f'Total images: <b>{self.readable_number(total_images)}</b><br>'
+            f'Total possible combinations: <b>{self.readable_number(possible_combinations)}</b><br>'
+        )
+
+    def readable_number(self, n):
+        n = list(reversed(str(n)))
+        group = ''
+        result = []
+        for i in range(len(n)):
+            group += str(n[i])
+            if not (i + 1) % 3:
+                result.append(group)
+                group = ''
+            if i == len(n) - 1:
+                result.append(group)
+        return ''.join(list(reversed(' '.join(result)))).strip()
 
 
 if __name__ == '__main__':

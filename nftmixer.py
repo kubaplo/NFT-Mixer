@@ -238,8 +238,123 @@ class Application(QMainWindow):
         [self.directories_layout.addWidget(label) for label in self.info_labels]
         self.info_layout.addWidget(self.summary_info)
 
-        self.main_layout_widget.show()
-        self.info_layout_widget.show()
+
+        self.image_generating_layout = QtWidgets.QVBoxLayout()
+        self.image_generating_layout_widget = QtWidgets.QWidget()
+        self.image_generating_layout_widget.setLayout(self.image_generating_layout)
+
+        image_generating_mode_layout = QtWidgets.QHBoxLayout()
+        image_generating_mode_layout_widget = QtWidgets.QWidget()
+        image_generating_mode_layout_widget.setLayout(image_generating_mode_layout)
+        image_generating_mode_layout.setAlignment(Qt.AlignCenter)
+        image_generating_mode_layout.setSpacing(30)
+        self.image_generating_layout.addWidget(image_generating_mode_layout_widget)
+
+        generating_mode_label = QtWidgets.QLabel()
+        generating_mode_label.setText('Select image generating mode:')
+        generating_mode_label.setFont(Lexend(self.info_font_size))
+
+        self.generating_mode_dropdown = QtWidgets.QComboBox()
+        self.generating_mode_dropdown.addItems(['Manual', 'Automatic'])
+        self.generating_mode_dropdown.setFont(Lexend(self.status_font_size))
+        self.generating_mode_dropdown.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.generating_mode_dropdown.currentTextChanged.connect(self.update_generating_mode)
+
+        image_generating_mode_layout.addWidget(generating_mode_label)
+        image_generating_mode_layout.addWidget(self.generating_mode_dropdown)
+
+        settings_label = QtWidgets.QLabel()
+        settings_label.setText('Settings')
+        settings_label.setFont(Lexend(self.info_font_size))
+        settings_label.setAlignment(Qt.AlignCenter)
+        settings_label.setContentsMargins(0,15,0,0)
+
+        self.settings_layout = QtWidgets.QVBoxLayout()
+        self.settings_layout_widget = QtWidgets.QWidget()
+        self.settings_layout_widget.setLayout(self.settings_layout)
+
+        options_label = QtWidgets.QLabel()
+        options_label.setText('Options')
+        options_label.setFont(Lexend(self.info_font_size))
+        options_label.setAlignment(Qt.AlignCenter)
+        options_label.setContentsMargins(0, 25, 0, 0)
+
+        self.control_layout = QtWidgets.QHBoxLayout()
+        self.control_layout_widget = QtWidgets.QWidget()
+        self.control_layout_widget.setLayout(self.control_layout)
+        self.control_layout.setAlignment(Qt.AlignCenter)
+        self.control_layout.setSpacing(15)
+
+        self.create_manual_generating_layout() # Because 'Manual' mode is default
+
+        self.image_generating_layout.addWidget(settings_label)
+        self.image_generating_layout.addWidget(self.settings_layout_widget)
+        self.image_generating_layout.addWidget(options_label)
+        self.image_generating_layout.addWidget(self.control_layout_widget)
+        self.main_layout.addWidget(self.image_generating_layout_widget)
+
+    def create_manual_generating_layout(self):
+        self.clean_generating_mode_layouts()
+
+        output_layout = QtWidgets.QHBoxLayout()
+        output_layout_widget = QtWidgets.QWidget()
+        output_layout_widget.setLayout(output_layout)
+        output_layout.setAlignment(Qt.AlignCenter)
+        output_layout.setSpacing(15)
+
+        output_label = QtWidgets.QLabel()
+        output_label.setText('Output path:')
+        output_label.setFont(Lexend(self.status_font_size))
+        output_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+
+        self.output_path_input = QLineEditExtended()
+        self.output_path_input.setMaximumWidth(int(0.25 * self.width))
+        self.output_path_input.setPlaceholderText('/path/to/output/directory')
+        self.output_path_input.clicked.connect(self.open_output_path_dialog)
+        self.output_path_input.textChanged.connect(self.update_output_path_input)
+
+        self.output_path_valid = QtWidgets.QLabel()
+
+        output_layout.addWidget(QtWidgets.QWidget())
+        output_layout.addWidget(output_label)
+        output_layout.addWidget(self.output_path_input)
+        output_layout.addWidget(self.output_path_valid)
+        self.settings_layout.addWidget(output_layout_widget)
+
+        buttons_size = 100
+
+        self.generate_button = QtWidgets.QPushButton()
+        self.generate_button.setFixedWidth(buttons_size)
+        self.generate_button.setText('Generate')
+        self.generate_button.setFont(Lexend(self.status_font_size))
+        self.generate_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.generate_button.clicked.connect(self.generate_image)
+
+        self.save_button = QtWidgets.QPushButton()
+        self.save_button.setFixedWidth(buttons_size)
+        self.save_button.setText('Save')
+        self.save_button.setFont(Lexend(self.status_font_size))
+        self.save_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.save_button.clicked.connect(self.save_image)
+
+        self.control_layout.addWidget(self.generate_button)
+        self.control_layout.addWidget(self.save_button)
+
+
+    def create_automatic_generating_layout(self):
+        self.clean_generating_mode_layouts()
+
+    def clean_generating_mode_layouts(self):
+        index = self.settings_layout.count() - 1
+        for i in range(index + 1):
+            index -= i
+            self.settings_layout.itemAt(index).widget().deleteLater()
+
+        index = self.control_layout.count() - 1
+        for i in range(index + 1):
+            index -= i
+            self.control_layout.itemAt(index).widget().deleteLater()
+
 
 
 
@@ -258,6 +373,25 @@ class Application(QMainWindow):
         self.dialog = QtWidgets.QFileDialog()
         self.dialog, _ = self.dialog.getOpenFileUrl(self, caption='Select JSON file with exceptions', options=options)
         self.file_input.setText(self.dialog.path())
+
+    def open_output_path_dialog(self):
+        options = QtWidgets.QFileDialog.Options()
+        options |= QtWidgets.QFileDialog.Option.DontUseNativeDialog
+        self.dialog = QtWidgets.QFileDialog()
+        self.dialog = self.dialog.getExistingDirectoryUrl(self, caption='Select output path', options=options)
+        self.output_path_input.setText(self.dialog.path())
+
+    def get_valid_icon(self):
+        pixmap = QtGui.QPixmap()
+        pixmap.load('img/valid.svg')
+        pixmap = pixmap.scaled(20,20)
+        return pixmap
+
+    def get_invalid_icon(self):
+        pixmap = QtGui.QPixmap()
+        pixmap.load('img/invalid.svg')
+        pixmap = pixmap.scaled(20, 20)
+        return pixmap
 
     def next_button_function(self):
         self.directory_path = self.path_input.text()
@@ -295,6 +429,13 @@ class Application(QMainWindow):
                 self.rarity_input.setText(data.get('rarity_filename'))
             except:
                 pass
+
+    def update_output_path_input(self):
+        path = self.output_path_input.text()
+        if os.path.isdir(path):
+            self.output_path_valid.setPixmap(self.get_valid_icon())
+        else:
+            self.output_path_valid.setPixmap(self.get_invalid_icon())
 
     def update_path_input_status(self):
         self.path_input_valid = False
@@ -403,7 +544,7 @@ class Application(QMainWindow):
                                 self.data[file.name].append(subfile.name)
 
     def update_general_info(self):
-        self.available_directories_label.setText(f'<b>Available directories: {len(self.data)}')
+        self.available_directories_label.setText(f'Available directories: <b>{len(self.data)}</b>')
 
         dirs = sorted(self.data.keys())
         self.update_info_labels([f'{i + 1}. {dirs[i]}' for i in range(len(dirs))])
@@ -418,6 +559,19 @@ class Application(QMainWindow):
             f'Total images: <b>{self.readable_number(total_images)}</b><br>'
             f'Total possible combinations: <b>{self.readable_number(possible_combinations)}</b><br>'
         )
+
+    def update_generating_mode(self):
+        mode = self.generating_mode_dropdown.currentText()
+        if mode == 'Manual':
+            self.create_manual_generating_layout()
+        elif mode == 'Automatic':
+            self.create_automatic_generating_layout()
+
+    def generate_image(self):
+        print('Image generated successfully!')
+
+    def save_image(self):
+        print('Image saved successfully!')
 
     def readable_number(self, n):
         n = list(reversed(str(n)))

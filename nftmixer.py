@@ -3,13 +3,6 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow
 
-'''sys._excepthook = sys.excepthook
-def exception_hook(exctype, value, traceback):
-    print(exctype, value, traceback)
-    sys._excepthook(exctype, value, traceback)
-    sys.exit(1)
-sys.excepthook = exception_hook'''
-
 class Lexend(QtGui.QFont):
     def __init__(self, font_size, bold=False):
         super().__init__()
@@ -25,16 +18,27 @@ class Lexend(QtGui.QFont):
                 self.setFamily('Lexend')
             else:
                 self.setFamily('Arial')
-
         else:
             self.setFamily('Lexend')
-
 
 class QLineEditExtended(QtWidgets.QLineEdit):
     clicked = pyqtSignal()
     def mouseReleaseEvent(self, event):
         super().mouseReleaseEvent(event)
         self.clicked.emit()
+
+class QLineEditDigitsOnly(QtWidgets.QLineEdit):
+    def __init__(self):
+        super().__init__()
+        self.textChanged.connect(self.textChangedEvent)
+
+    def textChangedEvent(self):
+        digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+        text = list(self.text())
+        for i in range(len(text)):
+            if not text[i] in digits:
+                text[i] = ''
+        self.setText(''.join(text))
 
 
 class Application(QMainWindow):
@@ -64,7 +68,6 @@ class Application(QMainWindow):
         self.exceptions_path = ''
         self.rarity_filename = ''
         self.data = {}
-
 
     def initial_settings(self):
         self.path_layout = QtWidgets.QVBoxLayout()
@@ -178,7 +181,6 @@ class Application(QMainWindow):
 
         self.load_configuration()
 
-
     def create_interface(self):
         self.main_layout = QtWidgets.QVBoxLayout()
         self.main_layout.setAlignment(Qt.AlignTop)
@@ -237,7 +239,6 @@ class Application(QMainWindow):
         self.info_layout.addWidget(self.directories_layout_widget)
         [self.directories_layout.addWidget(label) for label in self.info_labels]
         self.info_layout.addWidget(self.summary_info)
-
 
         self.image_generating_layout = QtWidgets.QVBoxLayout()
         self.image_generating_layout_widget = QtWidgets.QWidget()
@@ -310,6 +311,7 @@ class Application(QMainWindow):
         self.output_path_input = QLineEditExtended()
         self.output_path_input.setMaximumWidth(int(0.25 * self.width))
         self.output_path_input.setPlaceholderText('/path/to/output/directory')
+        self.output_path_input.setFont(Lexend(self.status_font_size))
         self.output_path_input.clicked.connect(self.open_output_path_dialog)
         self.output_path_input.textChanged.connect(self.update_output_path_input)
 
@@ -321,17 +323,17 @@ class Application(QMainWindow):
         output_layout.addWidget(self.output_path_valid)
         self.settings_layout.addWidget(output_layout_widget)
 
-        buttons_size = 100
+        button_size = 100
 
         self.generate_button = QtWidgets.QPushButton()
-        self.generate_button.setFixedWidth(buttons_size)
+        self.generate_button.setFixedWidth(button_size)
         self.generate_button.setText('Generate')
         self.generate_button.setFont(Lexend(self.status_font_size))
         self.generate_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
         self.generate_button.clicked.connect(self.generate_image)
 
         self.save_button = QtWidgets.QPushButton()
-        self.save_button.setFixedWidth(buttons_size)
+        self.save_button.setFixedWidth(button_size)
         self.save_button.setText('Save')
         self.save_button.setFont(Lexend(self.status_font_size))
         self.save_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
@@ -340,25 +342,119 @@ class Application(QMainWindow):
         self.control_layout.addWidget(self.generate_button)
         self.control_layout.addWidget(self.save_button)
 
-
     def create_automatic_generating_layout(self):
         self.clean_generating_mode_layouts()
+        label_width = 170
+
+        output_layout = QtWidgets.QHBoxLayout()
+        output_layout_widget = QtWidgets.QWidget()
+        output_layout_widget.setLayout(output_layout)
+        output_layout.setAlignment(Qt.AlignCenter)
+        output_layout.setSpacing(15)
+
+        output_label = QtWidgets.QLabel()
+        output_label.setText('Output path:')
+        output_label.setFont(Lexend(self.status_font_size))
+        output_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        output_label.setFixedWidth(label_width)
+
+        self.output_path_input = QLineEditExtended()
+        self.output_path_input.setMaximumWidth(int(0.25 * self.width))
+        self.output_path_input.setPlaceholderText('/path/to/output/directory')
+        self.output_path_input.setFont(Lexend(self.status_font_size))
+        self.output_path_input.clicked.connect(self.open_output_path_dialog)
+        self.output_path_input.textChanged.connect(self.update_output_path_input)
+
+        self.output_path_valid = QtWidgets.QLabel()
+
+        output_layout.addWidget(QtWidgets.QWidget())
+        output_layout.addWidget(output_label)
+        output_layout.addWidget(self.output_path_input)
+        output_layout.addWidget(self.output_path_valid)
+        self.settings_layout.addWidget(output_layout_widget)
+
+        time_delay_layout = QtWidgets.QHBoxLayout()
+        time_delay_layout_widget = QtWidgets.QWidget()
+        time_delay_layout_widget.setLayout(time_delay_layout)
+        time_delay_layout.setAlignment(Qt.AlignCenter)
+        time_delay_layout.setSpacing(15)
+
+        time_delay_label = QtWidgets.QLabel()
+        time_delay_label.setText('Time delay (seconds):')
+        time_delay_label.setFont(Lexend(self.status_font_size))
+        time_delay_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        time_delay_label.setFixedWidth(label_width)
+
+        self.time_delay_input = QLineEditDigitsOnly()
+        self.time_delay_input.setFont(Lexend(self.status_font_size))
+        self.time_delay_input.setMaximumWidth(int(0.25 * self.width))
+        self.time_delay_input.textChanged.connect(self.update_time_delay_input)
+
+        self.time_delay_valid = QtWidgets.QLabel()
+
+        time_delay_layout.addWidget(QtWidgets.QWidget())
+        time_delay_layout.addWidget(time_delay_label)
+        time_delay_layout.addWidget(self.time_delay_input)
+        time_delay_layout.addWidget(self.time_delay_valid)
+        self.settings_layout.addWidget(time_delay_layout_widget)
+
+        auto_save_layout = QtWidgets.QHBoxLayout()
+        auto_save_layout_widget = QtWidgets.QWidget()
+        auto_save_layout_widget.setLayout(auto_save_layout)
+        auto_save_layout.setAlignment(Qt.AlignCenter)
+        auto_save_layout.setSpacing(15)
+
+        auto_save_label = QtWidgets.QLabel()
+        auto_save_label.setText('Auto saving:')
+        auto_save_label.setFont(Lexend(self.status_font_size))
+        auto_save_label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+
+        self.auto_save_dropdown = QtWidgets.QComboBox()
+        self.auto_save_dropdown.addItems(['No', 'Yes'])
+        self.auto_save_dropdown.setFont(Lexend(self.status_font_size))
+        self.auto_save_dropdown.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+
+        auto_save_layout.addWidget(auto_save_label)
+        auto_save_layout.addWidget(self.auto_save_dropdown)
+        self.settings_layout.addWidget(auto_save_layout_widget)
+
+        button_size = 100
+
+        self.start_button = QtWidgets.QPushButton()
+        self.start_button.setFixedWidth(button_size)
+        self.start_button.setFont(Lexend(self.status_font_size))
+        self.start_button.setText('Start')
+        self.start_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.start_button.clicked.connect(self.start_generating)
+
+        self.stop_button = QtWidgets.QPushButton()
+        self.stop_button.setFixedWidth(button_size)
+        self.stop_button.setFont(Lexend(self.status_font_size))
+        self.stop_button.setText('Stop')
+        self.stop_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.stop_button.clicked.connect(self.stop_generating)
+
+        self.save_button = QtWidgets.QPushButton()
+        self.save_button.setFixedWidth(button_size)
+        self.save_button.setText('Save')
+        self.save_button.setFont(Lexend(self.status_font_size))
+        self.save_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.save_button.clicked.connect(self.save_image)
+
+        self.control_layout.addWidget(self.start_button)
+        self.control_layout.addWidget(self.stop_button)
+        self.control_layout.addWidget(self.save_button)
 
     def clean_generating_mode_layouts(self):
-        index = self.settings_layout.count() - 1
-        for i in range(index + 1):
-            index -= i
-            self.settings_layout.itemAt(index).widget().deleteLater()
+        for i in reversed(range(self.settings_layout.count())):
+            widget = self.settings_layout.itemAt(i).widget()
+            self.settings_layout.removeWidget(widget)
+            widget.deleteLater()
 
-        index = self.control_layout.count() - 1
-        for i in range(index + 1):
-            index -= i
-            self.control_layout.itemAt(index).widget().deleteLater()
-
-
-
-
-
+        for i in reversed(range(self.control_layout.count())):
+            widget = self.control_layout.itemAt(i).widget()
+            self.control_layout.removeWidget(widget)
+            widget.deleteLater()
 
     def open_components_directory_dialog(self):
         options = QtWidgets.QFileDialog.Options()
@@ -437,6 +533,19 @@ class Application(QMainWindow):
         else:
             self.output_path_valid.setPixmap(self.get_invalid_icon())
 
+    def update_time_delay_input(self):
+        digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+        text = self.time_delay_input.text()
+        valid = True
+        for char in text:
+            if not char in digits:
+                valid = False
+                break
+        if valid:
+            self.time_delay_valid.setPixmap(self.get_valid_icon())
+        else:
+            self.time_delay_valid.setPixmap(self.get_invalid_icon())
+
     def update_path_input_status(self):
         self.path_input_valid = False
         path = self.path_input.text()
@@ -493,7 +602,6 @@ class Application(QMainWindow):
             self.file_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: This file does NOT exist!</span>')
 
         self.activate_next_button()
-
 
     def update_rarity_input_status(self):
         self.rarity_input_valid = False
@@ -572,6 +680,12 @@ class Application(QMainWindow):
 
     def save_image(self):
         print('Image saved successfully!')
+
+    def start_generating(self):
+        print('Generating started!')
+
+    def stop_generating(self):
+        print('Generating stopped!')
 
     def readable_number(self, n):
         n = list(reversed(str(n)))

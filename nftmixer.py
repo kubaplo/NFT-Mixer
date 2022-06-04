@@ -40,6 +40,12 @@ class QLineEditDigitsOnly(QtWidgets.QLineEdit):
                 text[i] = ''
         self.setText(''.join(text))
 
+class QWidgetExtended(QtWidgets.QWidget):
+    resized = pyqtSignal()
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.resized.emit()
+
 
 class Application(QMainWindow):
     def __init__(self):
@@ -51,10 +57,10 @@ class Application(QMainWindow):
         self.height = int(0.7 * self.screen_height)
         self.setGeometry(int((self.screen_width-self.width)/2), int((self.screen_height-self.height)/2), self.width, self.height)
         self.setStyleSheet('background-color: #888;')
-        self.define_constants()
+        self.define_variables()
         self.initial_settings()
 
-    def define_constants(self):
+    def define_variables(self):
         self.title_font_size = 20
         self.status_font_size = 12
         self.info_font_size = 14
@@ -74,6 +80,7 @@ class Application(QMainWindow):
         self.path_layout_widget = QtWidgets.QWidget()
         self.path_layout_widget.setLayout(self.path_layout)
         self.path_layout.setAlignment(Qt.AlignCenter)
+        self.setCentralWidget(self.path_layout_widget)
 
         path_label = QtWidgets.QLabel()
         path_label.setText('<b>Step 1:</b> Select directory with your components:')
@@ -165,7 +172,6 @@ class Application(QMainWindow):
         button_layout.setContentsMargins(0,50,0,0)
         button_layout.addWidget(self.next_button)
 
-        self.setCentralWidget(self.path_layout_widget)
         self.path_layout.addWidget(path_label)
         self.path_layout.addWidget(path_input_layout_widget)
         self.path_layout.addWidget(self.path_input_status)
@@ -186,6 +192,7 @@ class Application(QMainWindow):
         self.main_layout.setAlignment(Qt.AlignTop)
         self.main_layout_widget = QtWidgets.QWidget()
         self.main_layout_widget.setLayout(self.main_layout)
+        self.setCentralWidget(self.main_layout_widget)
 
         self.info_layout = QtWidgets.QVBoxLayout()
         self.info_layout_widget = QtWidgets.QWidget()
@@ -233,7 +240,6 @@ class Application(QMainWindow):
         self.summary_info.setFont(Lexend(self.status_font_size))
         self.summary_info.setContentsMargins(0,20,0,0)
 
-        self.setCentralWidget(self.main_layout_widget)
         self.main_layout.addWidget(self.info_layout_widget)
         self.info_layout.addWidget(top_bar_layout_widget)
         self.info_layout.addWidget(self.directories_layout_widget)
@@ -293,6 +299,69 @@ class Application(QMainWindow):
         self.image_generating_layout.addWidget(options_label)
         self.image_generating_layout.addWidget(self.control_layout_widget)
         self.main_layout.addWidget(self.image_generating_layout_widget)
+
+        self.result_layout = QtWidgets.QHBoxLayout()
+        self.result_layout.setAlignment(Qt.AlignCenter)
+        self.result_layout.setSpacing(30)
+        self.result_layout.setContentsMargins(0,0,0,0)
+        self.result_layout_widget = QWidgetExtended()
+        self.result_layout_widget.resized.connect(self.resize_keeping_aspect_ratio)
+        self.result_layout_widget.setLayout(self.result_layout)
+        self.result_layout_widget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+
+        self.generated_image_size = (1024, 1024)
+        self.generated_image = QtWidgets.QLabel()
+        self.generated_image.setMinimumSize(0, 0)
+        self.generated_image.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.generated_image.setStyleSheet('background-color: #777')
+
+        self.traits_layout = QtWidgets.QVBoxLayout()
+        self.traits_layout.setAlignment(Qt.AlignCenter)
+        self.traits_layout.setContentsMargins(0,0,0,0)
+        self.traits_layout_widget = QtWidgets.QWidget()
+        self.traits_layout_widget.setLayout(self.traits_layout)
+        self.traits_layout_widget.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+
+        traits_title_label = QtWidgets.QLabel()
+        traits_title_label.setText('Traits:')
+        traits_title_label.setFont(Lexend(self.info_font_size))
+        traits_title_label.setAlignment(Qt.AlignCenter)
+
+        self.traits_label = QtWidgets.QLabel()
+        self.traits_label.setText('Background: Gray\nClothes: Hoodie\nComputer: Laptop')
+        self.traits_label.setFont(Lexend(self.status_font_size))
+
+        self.traits_layout.addWidget(traits_title_label)
+        self.traits_layout.addWidget(self.traits_label)
+
+        self.result_layout.addWidget(self.generated_image)
+        self.result_layout.addWidget(self.traits_layout_widget)
+        self.main_layout.addWidget(self.result_layout_widget)
+
+    def resize_keeping_aspect_ratio(self):
+        width, height = self.generated_image_size
+        spacing = self.result_layout.spacing()
+        ratio = width / height
+        available_width = self.result_layout_widget.width() - self.traits_layout_widget.width() - spacing
+        available_height = self.result_layout_widget.height()
+
+        updated_height = available_height
+        updated_width = int(updated_height * ratio)
+
+        if updated_width <= available_width:
+            # In this case height is the leading parameter
+            if updated_width <= width and updated_height <= height:
+                self.generated_image.setMaximumSize(updated_width, updated_height)
+            else:
+                self.generated_image.setMaximumSize(width, height)
+        else:
+            # In this case width is the leading parameter
+            updated_width = available_width
+            updated_height = int(updated_width / ratio)
+            if updated_width <= width and updated_height <= height:
+                self.generated_image.setMaximumSize(updated_width, updated_height)
+            else:
+                self.generated_image.setMaximumSize(width, height)
 
     def create_manual_generating_layout(self):
         self.clean_generating_mode_layouts()

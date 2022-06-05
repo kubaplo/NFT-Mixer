@@ -2,6 +2,7 @@ import sys, os, json
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow
+from mixer import Mixer
 
 class Lexend(QtGui.QFont):
     def __init__(self, font_size, bold=False):
@@ -50,14 +51,9 @@ class QWidgetExtended(QtWidgets.QWidget):
 class Application(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('NFTs Mixer')
-        self.screen_width = QApplication.primaryScreen().size().width()
-        self.screen_height = QApplication.primaryScreen().size().height()
-        self.width = int(0.5 * self.screen_width)
-        self.height = int(0.7 * self.screen_height)
-        self.setGeometry(int((self.screen_width-self.width)/2), int((self.screen_height-self.height)/2), self.width, self.height)
-        self.setStyleSheet('background-color: #888;')
+        self.mixer = Mixer()
         self.define_variables()
+        self.window_settings()
         self.initial_settings()
 
     def define_variables(self):
@@ -70,10 +66,15 @@ class Application(QMainWindow):
         self.path_input_valid = False
         self.file_input_valid = True
         self.rarity_input_valid = True
-        self.directory_path = ''
-        self.exceptions_path = ''
-        self.rarity_filename = ''
-        self.data = {}
+
+    def window_settings(self):
+        self.setWindowTitle('NFTs Mixer')
+        self.screen_width = QApplication.primaryScreen().size().width()
+        self.screen_height = QApplication.primaryScreen().size().height()
+        self.width = int(0.5 * self.screen_width)
+        self.height = int(0.7 * self.screen_height)
+        self.setGeometry(int((self.screen_width - self.width) / 2), int((self.screen_height - self.height) / 2), self.width, self.height)
+        self.setStyleSheet('background-color: #888;')
 
     def initial_settings(self):
         self.path_layout = QtWidgets.QVBoxLayout()
@@ -222,7 +223,7 @@ class Application(QMainWindow):
         centering_help.setFixedSize(60, 30)
 
         self.available_directories_label = QtWidgets.QLabel()
-        self.available_directories_label.setText('')
+        self.available_directories_label.setText('[Loading...]')
         self.available_directories_label.setAlignment(Qt.AlignCenter)
         self.available_directories_label.setFont(Lexend(self.info_font_size))
 
@@ -549,7 +550,7 @@ class Application(QMainWindow):
     def get_valid_icon(self):
         pixmap = QtGui.QPixmap()
         pixmap.load('img/valid.svg')
-        pixmap = pixmap.scaled(20,20)
+        pixmap = pixmap.scaled(20, 20)
         return pixmap
 
     def get_invalid_icon(self):
@@ -559,13 +560,17 @@ class Application(QMainWindow):
         return pixmap
 
     def next_button_function(self):
-        self.directory_path = self.path_input.text()
-        self.exceptions_path = self.file_input.text()
-        self.rarity_filename = self.rarity_input.text()
-        self.build_data()
+        self.mixer.components_path = self.path_input.text()
+        self.mixer.exceptions_path = self.file_input.text()
+        self.mixer.rarity_filename = self.rarity_input.text()
+
         self.path_layout_widget.deleteLater()
         self.create_interface()
-        self.update_general_info()
+
+        self.fetch_data_thread = FetchDataThread(self.mixer)
+        self.fetch_data_thread.finished.connect(self.update_general_info)
+        self.fetch_data_thread.start()
+
         self.save_configuration()
 
     def back_button_function(self):
@@ -573,27 +578,18 @@ class Application(QMainWindow):
         self.initial_settings()
 
     def save_configuration(self):
-        data = {
-            'directory_path': self.directory_path,
-            'exceptions_path': self.exceptions_path,
-            'rarity_filename': self.rarity_filename
-        }
-        data = json.dumps(data)
-        with open(os.getcwd() + '/config.json', 'w') as conf:
-            conf.write(data)
+        self.save_configuration_thread = SaveConfigurationThread(self.mixer)
+        self.save_configuration_thread.start()
 
     def load_configuration(self):
-        if os.path.isfile(os.getcwd() + '/config.json'):
-            try:
-                with open(os.getcwd() + '/config.json', 'r') as conf:
-                    data = conf.read()
-                data = json.loads(data)
+        self.load_configuration_thread = LoadConfigurationThread()
+        self.load_configuration_thread.finished.connect(self.update_input_fields)
+        self.load_configuration_thread.start()
 
-                self.path_input.setText(data.get('directory_path'))
-                self.file_input.setText(data.get('exceptions_path'))
-                self.rarity_input.setText(data.get('rarity_filename'))
-            except:
-                pass
+    def update_input_fields(self, data):
+        self.path_input.setText(data.get('components_path'))
+        self.file_input.setText(data.get('exceptions_path'))
+        self.rarity_input.setText(data.get('rarity_filename'))
 
     def update_output_path_input(self):
         path = self.output_path_input.text()
@@ -619,25 +615,8 @@ class Application(QMainWindow):
         self.path_input_valid = False
         path = self.path_input.text()
         if os.path.isdir(path):
-            dirs = 0
-            images = 0
-            with os.scandir(path) as scan:
-                for file in scan:
-                    if file.is_dir():
-                        dirs += 1
-                        with os.scandir(file.path) as subscan:
-                            for subfile in subscan:
-                                if subfile.is_file() and subfile.name.split('.')[-1].lower() == 'png':
-                                    images += 1
-
-            if dirs:
-                if images:
-                    self.path_input_status.setText(f'<span style=\'color: {self.correct_color};\'>STATUS: Provided directory is correct! It contains {dirs} subdirectories & {images} PNG images!</span>')
-                    self.path_input_valid = True
-                else:
-                    self.path_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: Subdirectories within this directory do NOT contain any PNG images!</span>')
-            else:
-                self.path_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: This directory is empty!</span>')
+            self.path_input_status.setText(f'<span style=\'color: {self.correct_color};\'>STATUS: Selected directory is correct!</span>')
+            self.path_input_valid = True
 
         elif os.path.isfile(path):
             self.path_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: This field must contain a directory NOT a file!</span>')
@@ -655,7 +634,7 @@ class Application(QMainWindow):
         path = self.file_input.text()
         if os.path.isfile(path):
             if path.split('.')[-1].lower() == 'json':
-                self.file_input_status.setText(f'<span style=\'color: {self.correct_color};\'>STATUS: Provided exceptions file is correct!</span>')
+                self.file_input_status.setText(f'<span style=\'color: {self.correct_color};\'>STATUS: Exceptions file is correct!</span>')
                 self.file_input_valid = True
             else:
                 self.file_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: File\'s extension is invalid! Only JSON files are accepted.</span>')
@@ -701,41 +680,48 @@ class Application(QMainWindow):
             content = ''
             for i in range(rows):
                 index += 1
-                if index == len(data):
+                if index >= len(data):
                     break
                 content += data[index]
                 if i != rows - 1:
                     content += '\n'
             label.setText(content)
 
-    def build_data(self):
-        #TODO: Decide whether leave this method here or move to backend file.
-        self.data = {}
-        with os.scandir(self.directory_path) as scan:
-            for file in scan:
-                if file.is_dir():
-                    self.data[file.name] = []
-                    with os.scandir(file.path) as subscan:
-                        for subfile in subscan:
-                            if subfile.is_file() and subfile.name.split('.')[-1].lower() == 'png':
-                                self.data[file.name].append(subfile.name)
-
     def update_general_info(self):
-        self.available_directories_label.setText(f'Available directories: <b>{len(self.data)}</b>')
+        non_empty_dirs = 0
+        for img_list in self.mixer.data.values():
+            if img_list:
+                non_empty_dirs += 1
 
-        dirs = sorted(self.data.keys())
-        self.update_info_labels([f'{i + 1}. {dirs[i]}' for i in range(len(dirs))])
+        if not self.mixer.data:
+            self.available_directories_label.setText(f'<span style=\'color: {self.error_color}\'>There are no directories on the path! Go back and select new path.</span>')
+            self.disable_generating_controls(True)
+        elif non_empty_dirs == len(self.mixer.data):
+            self.available_directories_label.setText(f'Available directories: <b>{non_empty_dirs}</b>')
+            self.disable_generating_controls(False)
+        elif non_empty_dirs > 0:
+            self.available_directories_label.setText(f'Available directories: <b>{non_empty_dirs}</b><br><span style=\'color: {self.warning_color}\'>({len(self.mixer.data)-non_empty_dirs} were excluded)</span>')
+            self.disable_generating_controls(False)
+        else:
+            self.available_directories_label.setText(f'<span style=\'color: {self.error_color}\'>All directories are empty! Go back and select new path.</span>')
+            self.disable_generating_controls(True)
 
-        total_images = 0
-        possible_combinations = 1
-        for x in self.data.values():
-            total_images += len(x)
-            possible_combinations *= len(x)
+        if self.mixer.data:
+            dirs = sorted(self.mixer.data.keys())
+            formatted_dirs = []
+            for i in range(len(dirs)):
+                images = len(self.mixer.data[dirs[i]])
+                formatted_dir = f'{i+1}. {dirs[i]} ({images})'
+                if not images:
+                    formatted_dir = f'<span style=\'color: {self.warning_color}\'>{formatted_dir}</span>'
+                formatted_dirs.append(formatted_dir)
 
-        self.summary_info.setText(
-            f'Total images: <b>{self.readable_number(total_images)}</b><br>'
-            f'Total possible combinations: <b>{self.readable_number(possible_combinations)}</b><br>'
-        )
+            self.update_info_labels(formatted_dirs)
+
+            self.summary_info.setText(
+                f'Total images: <b>{self.readable_number(self.mixer.total_images)}</b><br>'
+                f'Total possible combinations: <b>{self.readable_number(self.mixer.possible_combinations)}</b><br>'
+            )
 
     def update_generating_mode(self):
         mode = self.generating_mode_dropdown.currentText()
@@ -743,6 +729,20 @@ class Application(QMainWindow):
             self.create_manual_generating_layout()
         elif mode == 'Automatic':
             self.create_automatic_generating_layout()
+
+    def disable_generating_controls(self, state):
+        try:
+            self.generating_mode_dropdown.setDisabled(state)
+            self.generate_button.setDisabled(state)
+            self.save_button.setDisabled(state)
+        except:
+            pass
+        try:
+            self.start_button.setDisabled(state)
+            self.stop_button.setDisabled(state)
+            self.save_button.setDisabled(state)
+        except:
+            pass
 
     def generate_image(self):
         print('Image generated successfully!')
@@ -768,6 +768,44 @@ class Application(QMainWindow):
             if i == len(n) - 1:
                 result.append(group)
         return ''.join(list(reversed(' '.join(result)))).strip()
+
+
+class FetchDataThread(QtCore.QThread):
+    finished = pyqtSignal()
+    def __init__(self, mixer):
+        super().__init__()
+        self.mixer = mixer
+
+    def run(self):
+        self.mixer.fetch_data()
+        self.finished.emit()
+
+class SaveConfigurationThread(QtCore.QThread):
+    def __init__(self, mixer):
+        super().__init__()
+        self.mixer = mixer
+
+    def run(self):
+        data = {
+            'components_path': self.mixer.components_path,
+            'exceptions_path': self.mixer.exceptions_path,
+            'rarity_filename': self.mixer.rarity_filename
+        }
+        data = json.dumps(data)
+        with open(os.getcwd() + '/config.json', 'w') as conf:
+            conf.write(data)
+
+class LoadConfigurationThread(QtCore.QThread):
+    finished = pyqtSignal(dict)
+    def run(self):
+        if os.path.isfile(os.getcwd() + '/config.json'):
+            try:
+                with open(os.getcwd() + '/config.json', 'r') as conf:
+                    data = conf.read()
+                data = json.loads(data)
+                self.finished.emit(data)
+            except:
+                pass
 
 
 if __name__ == '__main__':

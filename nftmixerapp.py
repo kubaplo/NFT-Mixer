@@ -3,6 +3,7 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from mixer import Mixer
+from exceptions import ComponentsPathError, LayersOrderFileError, ExceptionsFileError, RarityFileError
 
 class Lexend(QtGui.QFont):
     def __init__(self, font_size, bold=False):
@@ -57,13 +58,15 @@ class Application(QMainWindow):
         self.initial_settings()
 
     def define_variables(self):
-        self.title_font_size = 20
+        self.title_font_size = 18
         self.status_font_size = 12
         self.info_font_size = 14
         self.error_color = '#c91414'
         self.warning_color = '#fa0'
         self.correct_color = '#62ff00'
+        self.hint_color = '#bbb'
         self.path_input_valid = False
+        self.layers_order_input_valid = False
         self.file_input_valid = True
         self.rarity_input_valid = True
 
@@ -106,14 +109,39 @@ class Application(QMainWindow):
         path_input_layout.addWidget(self.path_input)
 
         self.path_input_status = QtWidgets.QLabel()
-        self.path_input_status.setText('')
+        self.path_input_status.setText(f'<span style=\'color: {self.hint_color}\'>You need to fill this field!</span>')
         self.path_input_status.setAlignment(Qt.AlignCenter)
         self.path_input_status.setFont(Lexend(self.status_font_size))
 
+        layers_order_label = QtWidgets.QLabel()
+        layers_order_label.setText('<b>Step 2:</b> Select file with layers order:')
+        layers_order_label.setAlignment(Qt.AlignCenter)
+        layers_order_label.setContentsMargins(0,60,0,30)
+        layers_order_label.setFont(Lexend(self.title_font_size))
+
+        self.layers_order_input = QLineEditExtended()
+        self.layers_order_input.setMaximumWidth(int(0.5 * self.width))
+        self.layers_order_input.setMaximumHeight(50)
+        self.layers_order_input.setPlaceholderText('/path/to/layers.json')
+        self.layers_order_input.setFont(Lexend(self.status_font_size))
+        self.layers_order_input.clicked.connect(self.open_layers_order_file_dialog)
+        self.layers_order_input.textChanged.connect(self.update_layers_order_input_status)
+
+        layers_order_input_layout = QtWidgets.QHBoxLayout()
+        layers_order_input_layout_widget = QtWidgets.QWidget()
+        layers_order_input_layout_widget.setLayout(layers_order_input_layout)
+        layers_order_input_layout.setAlignment(Qt.AlignCenter)
+        layers_order_input_layout.addWidget(self.layers_order_input)
+
+        self.layers_order_input_status = QtWidgets.QLabel()
+        self.layers_order_input_status.setText(f'<span style=\'color: {self.hint_color}\'>You need to fill this field!</span>')
+        self.layers_order_input_status.setAlignment(Qt.AlignCenter)
+        self.layers_order_input_status.setFont(Lexend(self.status_font_size))
+
         exceptions_label = QtWidgets.QLabel()
-        exceptions_label.setText('<b>Step 2:</b> Select file with exceptions:')
+        exceptions_label.setText('<b>Step 3:</b> Select file with exceptions:')
         exceptions_label.setAlignment(Qt.AlignCenter)
-        exceptions_label.setContentsMargins(0, 70, 0, 30)
+        exceptions_label.setContentsMargins(0, 60, 0, 30)
         exceptions_label.setFont(Lexend(self.title_font_size))
 
         self.file_input = QLineEditExtended()
@@ -131,14 +159,14 @@ class Application(QMainWindow):
         file_input_layout.addWidget(self.file_input)
 
         self.file_input_status = QtWidgets.QLabel()
-        self.file_input_status.setText('')
+        self.file_input_status.setText(f'<span style=\'color: {self.hint_color}\'>(optional)</span>')
         self.file_input_status.setAlignment(Qt.AlignCenter)
         self.file_input_status.setFont(Lexend(self.status_font_size))
 
         rarity_label = QtWidgets.QLabel()
-        rarity_label.setText('<b>Step 3:</b> Provide name of rarity files:')
+        rarity_label.setText('<b>Step 4:</b> Provide name of rarity files:')
         rarity_label.setAlignment(Qt.AlignCenter)
-        rarity_label.setContentsMargins(0, 70, 0, 30)
+        rarity_label.setContentsMargins(0, 60, 0, 30)
         rarity_label.setFont(Lexend(self.title_font_size))
 
         self.rarity_input = QLineEditExtended()
@@ -155,7 +183,7 @@ class Application(QMainWindow):
         rarity_input_layout.addWidget(self.rarity_input)
 
         self.rarity_input_status = QtWidgets.QLabel()
-        self.rarity_input_status.setText('')
+        self.rarity_input_status.setText(f'<span style=\'color: {self.hint_color}\'>(optional)</span>')
         self.rarity_input_status.setAlignment(Qt.AlignCenter)
         self.rarity_input_status.setFont(Lexend(self.status_font_size))
 
@@ -178,6 +206,9 @@ class Application(QMainWindow):
         self.path_layout.addWidget(path_label)
         self.path_layout.addWidget(path_input_layout_widget)
         self.path_layout.addWidget(self.path_input_status)
+        self.path_layout.addWidget(layers_order_label)
+        self.path_layout.addWidget(layers_order_input_layout_widget)
+        self.path_layout.addWidget(self.layers_order_input_status)
         self.path_layout.addWidget(exceptions_label)
         self.path_layout.addWidget(file_input_layout_widget)
         self.path_layout.addWidget(self.file_input_status)
@@ -237,6 +268,7 @@ class Application(QMainWindow):
         self.info_labels = [QtWidgets.QLabel() for _ in range(4)]
         [label.setFont(Lexend(self.status_font_size)) for label in self.info_labels]
         [label.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed) for label in self.info_labels]
+        [label.setTextFormat(Qt.RichText) for label in self.info_labels] # Enforce HTML formatting
 
         self.summary_info = QtWidgets.QLabel()
         self.summary_info.setText('')
@@ -332,7 +364,6 @@ class Application(QMainWindow):
         traits_title_label.setAlignment(Qt.AlignCenter)
 
         self.traits_label = QtWidgets.QLabel()
-        self.traits_label.setText('Background: Gray\nClothes: Hoodie\nComputer: Laptop')
         self.traits_label.setFont(Lexend(self.status_font_size))
 
         self.traits_layout.addWidget(traits_title_label)
@@ -543,23 +574,30 @@ class Application(QMainWindow):
     def open_components_directory_dialog(self):
         options = QtWidgets.QFileDialog.Options()
         options |= QtWidgets.QFileDialog.Option.DontUseNativeDialog
-        self.dialog = QtWidgets.QFileDialog()
-        self.dialog = self.dialog.getExistingDirectoryUrl(self, caption='Select directory with your components', options=options)
-        self.path_input.setText(self.dialog.path())
+        dialog = QtWidgets.QFileDialog()
+        dialog = dialog.getExistingDirectoryUrl(self, caption='Select directory with your components', options=options)
+        self.path_input.setText(dialog.path())
+
+    def open_layers_order_file_dialog(self):
+        options = QtWidgets.QFileDialog.Options()
+        options |= QtWidgets.QFileDialog.Option.DontUseNativeDialog
+        dialog = QtWidgets.QFileDialog()
+        dialog, _ = dialog.getOpenFileUrl(self, caption='Select JSON file with layers order', options=options)
+        self.layers_order_input.setText(dialog.path())
 
     def open_exceptions_file_dialog(self):
         options = QtWidgets.QFileDialog.Options()
         options |= QtWidgets.QFileDialog.Option.DontUseNativeDialog
-        self.dialog = QtWidgets.QFileDialog()
-        self.dialog, _ = self.dialog.getOpenFileUrl(self, caption='Select JSON file with exceptions', options=options)
-        self.file_input.setText(self.dialog.path())
+        dialog = QtWidgets.QFileDialog()
+        dialog, _ = dialog.getOpenFileUrl(self, caption='Select JSON file with exceptions', options=options)
+        self.file_input.setText(dialog.path())
 
     def open_output_path_dialog(self):
         options = QtWidgets.QFileDialog.Options()
         options |= QtWidgets.QFileDialog.Option.DontUseNativeDialog
-        self.dialog = QtWidgets.QFileDialog()
-        self.dialog = self.dialog.getExistingDirectoryUrl(self, caption='Select output path', options=options)
-        self.output_path_input.setText(self.dialog.path())
+        dialog = QtWidgets.QFileDialog()
+        dialog = dialog.getExistingDirectoryUrl(self, caption='Select output path', options=options)
+        self.output_path_input.setText(dialog.path())
 
     def get_valid_icon(self):
         pixmap = QtGui.QPixmap()
@@ -575,6 +613,7 @@ class Application(QMainWindow):
 
     def next_button_function(self):
         self.mixer.components_path = self.path_input.text()
+        self.mixer.layers_order_path = self.layers_order_input.text()
         self.mixer.exceptions_path = self.file_input.text()
         self.mixer.rarity_filename = self.rarity_input.text()
 
@@ -583,6 +622,8 @@ class Application(QMainWindow):
 
         self.fetch_data_thread = FetchDataThread(self.mixer)
         self.fetch_data_thread.finished.connect(self.update_general_info)
+        self.fetch_data_thread.finished.connect(self.update_traits_label)
+        self.fetch_data_thread.error.connect(self.display_error)
         self.fetch_data_thread.start()
 
         self.save_configuration()
@@ -602,6 +643,7 @@ class Application(QMainWindow):
 
     def update_input_fields(self, data):
         self.path_input.setText(data.get('components_path'))
+        self.layers_order_input.setText(data.get('layers_order_path'))
         self.file_input.setText(data.get('exceptions_path'))
         self.rarity_input.setText(data.get('rarity_filename'))
 
@@ -640,6 +682,24 @@ class Application(QMainWindow):
 
         else:
             self.path_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: This path does NOT exist!</span>')
+
+        self.activate_next_button()
+
+    def update_layers_order_input_status(self):
+        self.layers_order_input_valid = False
+        path = self.layers_order_input.text()
+        if os.path.isfile(path):
+            self.layers_order_input_status.setText(f'<span style=\'color: {self.correct_color};\'>STATUS: Layers order file is correct!</span>')
+            self.layers_order_input_valid = True
+
+        elif os.path.isdir(path):
+            self.layers_order_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: This field must contain a file NOT a directory!</span>')
+
+        elif not path:
+            self.layers_order_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: You need to fill this field!</span>')
+
+        else:
+            self.layers_order_input_status.setText(f'<span style=\'color: {self.error_color};\'>ERROR: This file does NOT exist!</span>')
 
         self.activate_next_button()
 
@@ -682,7 +742,7 @@ class Application(QMainWindow):
         self.activate_next_button()
 
     def activate_next_button(self):
-        if self.path_input_valid and self.file_input_valid and self.rarity_input_valid:
+        if self.path_input_valid and self.layers_order_input_valid and self.file_input_valid and self.rarity_input_valid:
             self.next_button.setDisabled(False)
         else:
             self.next_button.setDisabled(True)
@@ -698,8 +758,15 @@ class Application(QMainWindow):
                     break
                 content += data[index]
                 if i != rows - 1:
-                    content += '\n'
+                    content += '<br>'
             label.setText(content)
+
+    def update_traits_label(self):
+        text = ''
+        for trait in self.mixer.data:
+            text += f'{trait}: {self.mixer.current_traits.get(trait, "---")}<br>'
+        text = text[:-4] # Cut out last <br> tag
+        self.traits_label.setText(text)
 
     def update_general_info(self):
         non_empty_dirs = 0
@@ -714,20 +781,33 @@ class Application(QMainWindow):
             self.available_directories_label.setText(f'Available directories: <b>{non_empty_dirs}</b>')
             self.disable_generating_controls(False)
         elif non_empty_dirs > 0:
-            self.available_directories_label.setText(f'Available directories: <b>{non_empty_dirs}</b><br><span style=\'color: {self.warning_color}\'>({len(self.mixer.data)-non_empty_dirs} were excluded)</span>')
+            excluded = len(self.mixer.data)-non_empty_dirs
+            self.available_directories_label.setText(f'Available directories: <b>{non_empty_dirs}</b><br><span style=\'color: {self.warning_color}\'>({excluded} {"were" if excluded>1 else "was"} excluded)</span>')
             self.disable_generating_controls(False)
         else:
             self.available_directories_label.setText(f'<span style=\'color: {self.error_color}\'>All directories are empty! Go back and select new path.</span>')
             self.disable_generating_controls(True)
 
+        if len(self.mixer.skipped_data) > 1:
+            text = self.available_directories_label.text()
+            self.available_directories_label.setText(text + f'<br><span style=\'color: {self.warning_color}\'>({len(self.mixer.skipped_data)} weren\'t listed in layers order)</span>') # For plural form
+        elif len(self.mixer.skipped_data) == 1:
+            text = self.available_directories_label.text()
+            self.available_directories_label.setText(text + f'<br><span style=\'color: {self.warning_color}\'>({len(self.mixer.skipped_data)} wasn\'t listed in layers order)</span>') # For singular form
+
         if self.mixer.data:
-            dirs = sorted(self.mixer.data.keys())
+            dirs = sorted(list(self.mixer.data.keys()) + list(self.mixer.skipped_data.keys()), key=lambda x: x.lower())
             formatted_dirs = []
             for i in range(len(dirs)):
-                images = len(self.mixer.data[dirs[i]])
-                formatted_dir = f'{i+1}. {dirs[i]} ({images})'
-                if not images:
-                    formatted_dir = f'<span style=\'color: {self.warning_color}\'>{formatted_dir}</span>'
+                if dirs[i] in self.mixer.data:
+                    images = len(self.mixer.data[dirs[i]])
+                    formatted_dir = f'{i+1}. {dirs[i]} ({images})'
+                    if not images:
+                        formatted_dir = f'<span style=\'color: {self.warning_color}\'>{formatted_dir}</span>'
+                else:
+                    images = len(self.mixer.skipped_data[dirs[i]])
+                    formatted_dir = f'<span style=\'color: {self.hint_color}; text-decoration: line-through;\'>{i + 1}. {dirs[i]} ({images})</span>'
+
                 formatted_dirs.append(formatted_dir)
 
             self.update_info_labels(formatted_dirs)
@@ -757,6 +837,10 @@ class Application(QMainWindow):
             self.save_button.setDisabled(state)
         except:
             pass
+
+    def display_error(self, message):
+        self.available_directories_label.setText(f'<span style=\'color: {self.error_color}\'>{message}</span>')
+        self.disable_generating_controls(True)
 
     def generate_image(self):
         print('Image generated successfully!')
@@ -793,13 +877,24 @@ class Application(QMainWindow):
 
 class FetchDataThread(QtCore.QThread):
     finished = pyqtSignal()
+    error = pyqtSignal(str)
     def __init__(self, mixer):
         super().__init__()
         self.mixer = mixer
 
     def run(self):
-        self.mixer.fetch_data()
-        self.finished.emit()
+        try:
+            self.mixer.fetch_data()
+        except ComponentsPathError:
+            self.error.emit('Error while reading components path!')
+        except LayersOrderFileError:
+            self.error.emit('Error with layers order file!')
+        except ExceptionsFileError:
+            self.error.emit('Error with exceptions file!')
+        except RarityFileError:
+            self.error.emit('Error in one of rarity files!')
+        else:
+            self.finished.emit()
 
 class SaveConfigurationThread(QtCore.QThread):
     def __init__(self, mixer):
@@ -809,6 +904,7 @@ class SaveConfigurationThread(QtCore.QThread):
     def run(self):
         data = {
             'components_path': self.mixer.components_path,
+            'layers_order_path': self.mixer.layers_order_path,
             'exceptions_path': self.mixer.exceptions_path,
             'rarity_filename': self.mixer.rarity_filename
         }

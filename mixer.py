@@ -1,31 +1,82 @@
 import os, random
+from exceptions import ComponentsPathError, LayersOrderFileError, ExceptionsFileError, RarityFileError
 
 class Mixer:
     def __init__(self):
         self.data = None
+        self.skipped_data = None
         self.total_images = None
+        self.skipped_total_images = None
         self.possible_combinations = None
         self.components_path = None
+        self.layers_order_path = None
         self.exceptions_path = None
         self.rarity_filename = None
         self.current_image = None
+        self.current_traits = {}
 
     def fetch_data(self):
         self.data = {}
-        self.total_images = 0
-        self.possible_combinations = 1
-        with os.scandir(self.components_path) as scan:
-            for file in scan:
-                if file.is_dir():
-                    self.data[file.name] = []
-                    with os.scandir(file.path) as subscan:
-                        for subfile in subscan:
-                            if subfile.is_file() and subfile.name.split('.')[-1].lower() == 'png':
-                                self.data[file.name].append(subfile.name)
-                                self.total_images += 1
+        self.skipped_data = {}
+        self.load_layers_order()
+        self.load_components_directory()
 
-                    if self.data[file.name]:
-                        self.possible_combinations *= len(self.data[file.name])
+    def load_components_directory(self):
+        self.total_images = 0
+        self.skipped_total_images = 0
+        self.possible_combinations = 1
+        try:
+            with os.scandir(self.components_path) as scan:
+                for file in scan:
+                    if file.is_dir():
+                        with os.scandir(file.path) as subscan:
+                            for subfile in subscan:
+                                if subfile.is_file() and subfile.name.split('.')[-1].lower() == 'png':
+                                    if file.name in self.data:
+                                        self.data[file.name].append(subfile.name)
+                                        self.total_images += 1
+                                    else:
+                                        self.skipped_data[file.name].append(subfile.name)
+                                        self.skipped_total_images += 1
+
+                        if file.name in self.data and self.data[file.name]:
+                            self.possible_combinations *= len(self.data[file.name])
+
+        except:
+            raise ComponentsPathError
 
         if not self.total_images:
             self.possible_combinations = 0
+
+    def load_layers_order(self):
+        dirs = []
+        with os.scandir(self.components_path) as scan:
+            for file in scan:
+                if file.is_dir():
+                    dirs.append(file.name)
+
+        try:
+            with open(self.layers_order_path, 'r') as file:
+                order = file.read()
+
+            order = order.split('\n')
+
+        except:
+            raise LayersOrderFileError
+
+        for layer in order:
+            if layer in dirs:
+                self.data[layer] = []
+
+        if not self.data:
+            raise LayersOrderFileError
+
+        for directory in dirs:
+            if not directory in self.data:
+                self.skipped_data[directory] = []
+
+    def load_exceptions_file(self):
+        pass
+
+    def load_rarity_file(self):
+        pass

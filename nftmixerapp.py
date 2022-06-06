@@ -71,6 +71,8 @@ class Application(QMainWindow):
         self.setWindowTitle('NFTs Mixer')
         self.screen_width = QApplication.primaryScreen().size().width()
         self.screen_height = QApplication.primaryScreen().size().height()
+        self.current_width = self.width
+        self.current_height = self.height
         self.width = int(0.5 * self.screen_width)
         self.height = int(0.7 * self.screen_height)
         self.setGeometry(int((self.screen_width - self.width) / 2), int((self.screen_height - self.height) / 2), self.width, self.height)
@@ -206,30 +208,31 @@ class Application(QMainWindow):
         self.directories_layout_widget = QtWidgets.QWidget()
         self.directories_layout_widget.setLayout(self.directories_layout)
 
-        top_bar_layout = QtWidgets.QHBoxLayout()
-        top_bar_layout_widget = QtWidgets.QWidget()
-        top_bar_layout_widget.setLayout(top_bar_layout)
-        top_bar_layout.setContentsMargins(0,0,0,0)
-
-        self.back_button = QtWidgets.QPushButton()
+        self.back_button = QtWidgets.QPushButton(self)
         self.back_button.setFixedSize(60, 30)
+        self.back_button.move(10, 10)
         self.back_button.setIcon(QtGui.QIcon('img/back.svg'))
         icon_size = QtCore.QSize(30, 15)
         self.back_button.setIconSize(icon_size)
         self.back_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
         self.back_button.clicked.connect(self.back_button_function)
 
-        centering_help = QtWidgets.QWidget()
-        centering_help.setFixedSize(60, 30)
+        self.info_layout_hidden = False
+        self.hide_button = QtWidgets.QPushButton(self)
+        self.hide_button.setFixedSize(60, 30)
+        self.hide_button.move(self.current_width() - self.hide_button.width() - 10, 10)
+        self.hide_button.setText('Hide')
+        self.hide_button.setFont(Lexend(self.status_font_size))
+        self.hide_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.hide_button.clicked.connect(self.hide_info_layout)
+
+        self.back_button.show()
+        self.hide_button.show()
 
         self.available_directories_label = QtWidgets.QLabel()
         self.available_directories_label.setText('[Loading...]')
         self.available_directories_label.setAlignment(Qt.AlignCenter)
         self.available_directories_label.setFont(Lexend(self.info_font_size))
-
-        top_bar_layout.addWidget(self.back_button)
-        top_bar_layout.addWidget(self.available_directories_label)
-        top_bar_layout.addWidget(centering_help)
 
         self.info_labels = [QtWidgets.QLabel() for _ in range(4)]
         [label.setFont(Lexend(self.status_font_size)) for label in self.info_labels]
@@ -242,7 +245,7 @@ class Application(QMainWindow):
         self.summary_info.setContentsMargins(0,20,0,0)
 
         self.main_layout.addWidget(self.info_layout_widget)
-        self.info_layout.addWidget(top_bar_layout_widget)
+        self.info_layout.addWidget(self.available_directories_label)
         self.info_layout.addWidget(self.directories_layout_widget)
         [self.directories_layout.addWidget(label) for label in self.info_labels]
         self.info_layout.addWidget(self.summary_info)
@@ -363,6 +366,17 @@ class Application(QMainWindow):
                 self.generated_image.setMaximumSize(updated_width, updated_height)
             else:
                 self.generated_image.setMaximumSize(width, height)
+
+    def hide_info_layout(self):
+        if not self.info_layout_hidden:
+            self.info_layout_hidden = True
+            self.info_layout_widget.hide()
+            self.hide_button.setText('Show')
+
+        else:
+            self.info_layout_hidden = False
+            self.info_layout_widget.show()
+            self.hide_button.setText('Hide')
 
     def create_manual_generating_layout(self):
         self.clean_generating_mode_layouts()
@@ -768,6 +782,13 @@ class Application(QMainWindow):
             if i == len(n) - 1:
                 result.append(group)
         return ''.join(list(reversed(' '.join(result)))).strip()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        try:
+            self.hide_button.move(self.current_width() - self.hide_button.width() - 10, 10) # Update position of hide_button when main window is resized
+        except:
+            pass
 
 
 class FetchDataThread(QtCore.QThread):

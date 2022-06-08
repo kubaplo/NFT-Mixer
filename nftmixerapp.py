@@ -349,6 +349,7 @@ class Application(QMainWindow):
         self.generated_image = QtWidgets.QLabel()
         self.generated_image.setMinimumSize(0, 0)
         self.generated_image.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.generated_image.setScaledContents(True) # Dynamically adjust pixmap to the size of the label
         self.generated_image.setStyleSheet('background-color: #777')
 
         self.traits_layout = QtWidgets.QVBoxLayout()
@@ -623,6 +624,7 @@ class Application(QMainWindow):
         self.fetch_data_thread = FetchDataThread(self.mixer)
         self.fetch_data_thread.finished.connect(self.update_general_info)
         self.fetch_data_thread.finished.connect(self.update_traits_label)
+        self.fetch_data_thread.imageSizeChanged.connect(self.update_image_area)
         self.fetch_data_thread.error.connect(self.display_error)
         self.fetch_data_thread.start()
 
@@ -646,6 +648,10 @@ class Application(QMainWindow):
         self.layers_order_input.setText(data.get('layers_order_path'))
         self.file_input.setText(data.get('exceptions_path'))
         self.rarity_input.setText(data.get('rarity_filename'))
+
+    def update_image_area(self):
+        self.generated_image_size = self.mixer.image_size
+        self.resize_keeping_aspect_ratio()
 
     def update_output_path_input(self):
         path = self.output_path_input.text()
@@ -842,8 +848,18 @@ class Application(QMainWindow):
         self.available_directories_label.setText(f'<span style=\'color: {self.error_color}\'>{message}</span>')
         self.disable_generating_controls(True)
 
+    def update_generated_image(self, image):
+        image = QtGui.QImage(image.tobytes('raw', 'RGBA'), *self.generated_image_size, QtGui.QImage.Format_RGBA8888)
+        pixmap = QtGui.QPixmap()
+        pixmap = pixmap.fromImage(image)
+        self.generated_image.setPixmap(pixmap)
+        self.generated_image.setMinimumSize(1, 1)
+        self.update_traits_label()
+
     def generate_image(self):
-        print('Image generated successfully!')
+        self.generate_image_thread = GenerateImageThread(self.mixer)
+        self.generate_image_thread.finished.connect(self.update_generated_image)
+        self.generate_image_thread.start()
 
     def save_image(self):
         print('Image saved successfully!')
@@ -878,6 +894,7 @@ class Application(QMainWindow):
 class FetchDataThread(QtCore.QThread):
     finished = pyqtSignal()
     error = pyqtSignal(str)
+    imageSizeChanged = pyqtSignal()
     def __init__(self, mixer):
         super().__init__()
         self.mixer = mixer
@@ -895,6 +912,17 @@ class FetchDataThread(QtCore.QThread):
             self.error.emit('Error in one of rarity files!')
         else:
             self.finished.emit()
+            self.imageSizeChanged.emit()
+
+class GenerateImageThread(QtCore.QThread):
+    finished = pyqtSignal(object)
+    def __init__(self, mixer):
+        super().__init__()
+        self.mixer = mixer
+
+    def run(self):
+        image = self.mixer.generate()
+        self.finished.emit(image)
 
 class SaveConfigurationThread(QtCore.QThread):
     def __init__(self, mixer):

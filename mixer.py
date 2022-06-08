@@ -1,5 +1,6 @@
 import os, random
 from exceptions import ComponentsPathError, LayersOrderFileError, ExceptionsFileError, RarityFileError
+from PIL import Image
 
 class Mixer:
     def __init__(self):
@@ -14,12 +15,19 @@ class Mixer:
         self.rarity_filename = None
         self.current_image = None
         self.current_traits = {}
+        self.image_size = (1024, 1024) # Default value
+
+    def get_absolute_path(self, path):
+        return self.components_path + '/' + path
 
     def fetch_data(self):
         self.data = {}
         self.skipped_data = {}
+        self.current_image = None
+        self.current_traits = {}
         self.load_layers_order()
         self.load_components_directory()
+        self.get_image_size()
 
     def load_components_directory(self):
         self.total_images = 0
@@ -80,3 +88,27 @@ class Mixer:
 
     def load_rarity_file(self):
         pass
+
+    def get_image_size(self):
+        image = None
+        for directory in self.data:
+            if len(self.data[directory]):
+                image = self.data[directory][0]
+                break
+
+        if image:
+            image = Image.open(self.get_absolute_path(f'{directory}/{image}'))
+            self.image_size = image.size
+            return image.size
+
+    def generate(self):
+        image = Image.new('RGBA', self.image_size, (0,0,0,0))
+        for directory in self.data:
+            item = random.choice(self.data[directory])
+            layer = Image.open(self.get_absolute_path(f'{directory}/{item}'))
+            image = Image.alpha_composite(image, layer)
+            self.current_traits[directory] = item
+
+        self.current_image = image
+
+        return image

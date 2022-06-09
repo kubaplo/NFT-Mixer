@@ -1,4 +1,4 @@
-import sys, os, json
+import sys, os, json, time
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow
@@ -35,11 +35,16 @@ class QLineEditDigitsOnly(QtWidgets.QLineEdit):
         self.textChanged.connect(self.textChangedEvent)
 
     def textChangedEvent(self):
-        digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+        digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.']
         text = list(self.text())
+        dots = 0
         for i in range(len(text)):
             if not text[i] in digits:
                 text[i] = ''
+            if text[i] == '.' and dots:
+                text[i] = ''
+            if text[i] == '.':
+                dots += 1
         self.setText(''.join(text))
 
 class QWidgetExtended(QtWidgets.QWidget):
@@ -454,6 +459,7 @@ class Application(QMainWindow):
         self.save_button.setFont(Lexend(self.status_font_size))
         self.save_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
         self.save_button.clicked.connect(self.save_image)
+        self.save_button.setDisabled(True)
 
         self.control_layout.addWidget(self.generate_button)
         self.control_layout.addWidget(self.save_button)
@@ -480,6 +486,7 @@ class Application(QMainWindow):
         self.output_path_input.setFont(Lexend(self.status_font_size))
         self.output_path_input.clicked.connect(self.open_output_path_dialog)
         self.output_path_input.textChanged.connect(self.update_output_path_input)
+        self.output_path_input.textChanged.connect(self.update_start_button)
 
         self.output_path_valid = QtWidgets.QLabel()
 
@@ -529,6 +536,9 @@ class Application(QMainWindow):
         self.auto_save_dropdown.addItems(['No', 'Yes'])
         self.auto_save_dropdown.setFont(Lexend(self.status_font_size))
         self.auto_save_dropdown.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
+        self.auto_save_dropdown.currentTextChanged.connect(self.update_auto_save_button)
+        self.auto_save_dropdown.currentTextChanged.connect(self.update_start_button)
+        self.auto_save_dropdown.currentTextChanged.connect(self.update_auto_saving_state)
 
         auto_save_layout.addWidget(auto_save_label)
         auto_save_layout.addWidget(self.auto_save_dropdown)
@@ -542,6 +552,7 @@ class Application(QMainWindow):
         self.start_button.setText('Start')
         self.start_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
         self.start_button.clicked.connect(self.start_generating)
+        self.start_button.setDisabled(True)
 
         self.stop_button = QtWidgets.QPushButton()
         self.stop_button.setFixedWidth(button_size)
@@ -549,6 +560,7 @@ class Application(QMainWindow):
         self.stop_button.setText('Stop')
         self.stop_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
         self.stop_button.clicked.connect(self.stop_generating)
+        self.stop_button.setDisabled(True)
 
         self.save_button = QtWidgets.QPushButton()
         self.save_button.setFixedWidth(button_size)
@@ -556,6 +568,7 @@ class Application(QMainWindow):
         self.save_button.setFont(Lexend(self.status_font_size))
         self.save_button.setCursor(QtGui.QCursor(Qt.PointingHandCursor))
         self.save_button.clicked.connect(self.save_image)
+        self.save_button.setDisabled(True)
 
         self.control_layout.addWidget(self.start_button)
         self.control_layout.addWidget(self.stop_button)
@@ -657,21 +670,41 @@ class Application(QMainWindow):
         path = self.output_path_input.text()
         if os.path.isdir(path):
             self.output_path_valid.setPixmap(self.get_valid_icon())
+            if self.mixer.current_image:
+                self.save_button.setDisabled(False)
         else:
             self.output_path_valid.setPixmap(self.get_invalid_icon())
+            self.save_button.setDisabled(True)
+
+    def update_auto_save_button(self):
+        if self.auto_save_dropdown.currentText() == 'No' and self.mixer.current_image and os.path.isdir(self.output_path_input.text()):
+            self.save_button.setDisabled(False)
+        else:
+            self.save_button.setDisabled(True)
+
+    def update_start_button(self):
+        if self.auto_save_dropdown.currentText() == 'Yes' and not os.path.isdir(self.output_path_input.text()):
+            self.start_button.setDisabled(True)
+        else:
+            self.start_button.setDisabled(False)
+
+    def update_auto_saving_state(self):
+        self.mixer.auto_saving = True if self.auto_save_dropdown.currentText() == 'Yes' else False
 
     def update_time_delay_input(self):
-        digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+        digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.']
         text = self.time_delay_input.text()
-        valid = True
+        valid = True if text else False
         for char in text:
             if not char in digits:
                 valid = False
                 break
         if valid:
             self.time_delay_valid.setPixmap(self.get_valid_icon())
+            self.start_button.setDisabled(False)
         else:
             self.time_delay_valid.setPixmap(self.get_invalid_icon())
+            self.start_button.setDisabled(True)
 
     def update_path_input_status(self):
         self.path_input_valid = False
@@ -829,18 +862,20 @@ class Application(QMainWindow):
             self.create_manual_generating_layout()
         elif mode == 'Automatic':
             self.create_automatic_generating_layout()
+        self.mixer.auto_generating = False
 
     def disable_generating_controls(self, state):
         try:
             self.generating_mode_dropdown.setDisabled(state)
             self.generate_button.setDisabled(state)
-            self.save_button.setDisabled(state)
+            self.output_path_input.setDisabled(state)
         except:
             pass
         try:
             self.start_button.setDisabled(state)
             self.stop_button.setDisabled(state)
-            self.save_button.setDisabled(state)
+            self.output_path_input.setDisabled(state)
+            self.time_delay_input.setDisabled(state)
         except:
             pass
 
@@ -859,16 +894,33 @@ class Application(QMainWindow):
     def generate_image(self):
         self.generate_image_thread = GenerateImageThread(self.mixer)
         self.generate_image_thread.finished.connect(self.update_generated_image)
+        self.generate_image_thread.finished.connect(self.update_output_path_input)
         self.generate_image_thread.start()
 
     def save_image(self):
-        print('Image saved successfully!')
+        path = self.output_path_input.text()
+        self.save_image_thread = SaveImageThread(path, self.mixer)
+        self.save_image_thread.start()
 
     def start_generating(self):
-        print('Generating started!')
+        self.start_button.setDisabled(True)
+        self.stop_button.setDisabled(False)
+        self.output_path_input.setDisabled(True)
+        self.time_delay_input.setDisabled(True)
+
+        path = self.output_path_input.text()
+        delay = self.time_delay_input.text()
+        self.start_image_generating_thread = StartImageGeneratingThread(path, delay, self.mixer)
+        self.start_image_generating_thread.generated.connect(self.update_generated_image)
+        self.start_image_generating_thread.generated.connect(self.update_auto_save_button)
+        self.start_image_generating_thread.start()
 
     def stop_generating(self):
-        print('Generating stopped!')
+        self.mixer.auto_generating = False
+        self.start_button.setDisabled(False)
+        self.stop_button.setDisabled(True)
+        self.output_path_input.setDisabled(False)
+        self.time_delay_input.setDisabled(False)
 
     def readable_number(self, n):
         n = list(reversed(str(n)))
@@ -923,6 +975,33 @@ class GenerateImageThread(QtCore.QThread):
     def run(self):
         image = self.mixer.generate()
         self.finished.emit(image)
+
+class SaveImageThread(QtCore.QThread):
+    def __init__(self, path, mixer):
+        super().__init__()
+        self.path = path
+        self.mixer = mixer
+
+    def run(self):
+        self.mixer.save(self.path)
+
+class StartImageGeneratingThread(QtCore.QThread):
+    generated = pyqtSignal(object)
+    def __init__(self, path, delay, mixer):
+        super().__init__()
+        self.path = path
+        self.delay = float(delay)
+        self.mixer = mixer
+
+    def run(self):
+        self.mixer.auto_generating = True
+        while self.mixer.auto_generating:
+            image = self.mixer.generate()
+            self.generated.emit(image)
+            if self.mixer.auto_saving:
+                self.mixer.save(self.path)
+            time.sleep(self.delay)
+
 
 class SaveConfigurationThread(QtCore.QThread):
     def __init__(self, mixer):

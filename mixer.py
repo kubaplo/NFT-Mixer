@@ -16,6 +16,8 @@ class Mixer:
         self.current_image = None
         self.current_traits = {}
         self.image_size = (1024, 1024) # Default value
+        self.auto_generating = False
+        self.auto_saving = False
 
     def get_absolute_path(self, path):
         return self.components_path + '/' + path
@@ -112,3 +114,17 @@ class Mixer:
         self.current_image = image
 
         return image
+
+    def save(self, path):
+        last = 0
+        with os.scandir(path) as scan:
+            for file in scan:
+                if file.is_file() and file.name.split('.')[-1].lower() == 'png':
+                    try:
+                        n = int('.'.join(file.name.split('.')[:-1]))
+                        if n > last:
+                            last = n
+                    except:
+                        pass
+
+        self.current_image.save(f'{path}/{last+1}.png')

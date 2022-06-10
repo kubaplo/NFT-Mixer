@@ -3,7 +3,7 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from mixer import Mixer
-from exceptions import ComponentsPathError, LayersOrderFileError, ExceptionsFileError, RarityFileError
+from exceptions import ComponentsPathError, LayersOrderFileError
 
 class Lexend(QtGui.QFont):
     def __init__(self, font_size, bold=False):
@@ -851,9 +851,12 @@ class Application(QMainWindow):
 
             self.update_info_labels(formatted_dirs)
 
+            exception_rules = self.mixer.count_exception_rules()
+            exception_rules_error = f'<span style=\'color: {self.error_color}\'>Error while reading file!</span>' if self.mixer.exceptions_path else f'<span style=\'color: {self.warning_color}\'>Exceptions file not specified!</span>'
             self.summary_info.setText(
                 f'Total images: <b>{self.readable_number(self.mixer.total_images)}</b><br>'
                 f'Total possible combinations: <b>{self.readable_number(self.mixer.possible_combinations)}</b><br>'
+                f'Number of exception rules: <b>{exception_rules if exception_rules != None else exception_rules_error}</b><br>'
             )
 
     def update_generating_mode(self):
@@ -958,8 +961,6 @@ class FetchDataThread(QtCore.QThread):
             self.error.emit('Error while reading components path!')
         except LayersOrderFileError:
             self.error.emit('Error with layers order file!')
-        except ExceptionsFileError:
-            self.error.emit('Error with exceptions file!')
         except RarityFileError:
             self.error.emit('Error in one of rarity files!')
         else:

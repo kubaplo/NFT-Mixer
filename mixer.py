@@ -1,5 +1,5 @@
-import os, random
-from exceptions import ComponentsPathError, LayersOrderFileError, ExceptionsFileError, RarityFileError
+import os, random, json
+from exceptions import ComponentsPathError, LayersOrderFileError
 from PIL import Image
 
 class Mixer:
@@ -27,7 +27,9 @@ class Mixer:
         self.skipped_data = {}
         self.current_image = None
         self.current_traits = {}
+
         self.load_layers_order()
+        self.load_exceptions_file()
         self.load_components_directory()
         self.get_image_size()
 
@@ -86,7 +88,16 @@ class Mixer:
                 self.skipped_data[directory] = []
 
     def load_exceptions_file(self):
-        pass
+        self.exception_list = None
+        try:
+            with open(self.exceptions_path, 'r') as file:
+                data = file.read()
+
+            data = data.replace('\t', '')
+            self.exception_list = json.loads(data)
+
+        except:
+            pass
 
     def load_rarity_file(self):
         pass
@@ -104,12 +115,35 @@ class Mixer:
             return image.size
 
     def generate(self):
+        self.current_traits = {}
         image = Image.new('RGBA', self.image_size, (0,0,0,0))
+
         for directory in self.data:
-            item = random.choice(self.data[directory])
-            layer = Image.open(self.get_absolute_path(f'{directory}/{item}'))
-            image = Image.alpha_composite(image, layer)
-            self.current_traits[directory] = item
+            skip = False
+            cleared_items = [*self.data[directory]]
+
+            # Exclude disallowed combinations:
+            if self.exception_list:
+                for trait in self.current_traits:
+                    for rule in self.exception_list:
+                        for exception in rule:
+                            if self.current_traits[trait] == exception:
+                                for e in rule:
+                                    if e[-1] == '/' and e[:-1] == directory:
+                                        skip = True
+                                        break
+                                    if e + '.png' in cleared_items:
+                                        print(f'{e}.png was excluded from {directory}')
+                                        cleared_items.remove(e + '.png')
+
+            if not skip and cleared_items:
+                item = random.choice(cleared_items)
+                layer = Image.open(self.get_absolute_path(f'{directory}/{item}'))
+                image = Image.alpha_composite(image, layer)
+                self.current_traits[directory] = '.'.join(item.split('.')[:-1])
+
+            else:
+                self.current_traits[directory] = 'none'
 
         self.current_image = image
 
@@ -128,3 +162,7 @@ class Mixer:
                         pass
 
         self.current_image.save(f'{path}/{last+1}.png')
+
+    def count_exception_rules(self):
+        if self.exception_list != None:
+            return len(self.exception_list)

@@ -31,6 +31,7 @@ class Mixer:
         self.load_layers_order()
         self.load_exceptions_file()
         self.load_components_directory()
+        self.load_rarity_files()
         self.get_image_size()
 
     def load_components_directory(self):
@@ -99,8 +100,31 @@ class Mixer:
         except:
             pass
 
-    def load_rarity_file(self):
-        pass
+    def load_rarity_files(self):
+        self.rarity_levels = {}
+        self.rarity_files = 0
+        for directory in self.data:
+            path = self.get_absolute_path(directory) + '/' + self.rarity_filename
+            if os.path.isfile(path):
+                try:
+                    with open(path, 'r') as file:
+                        data = file.read()
+                    data = data.replace('\t', '')
+                    data = json.loads(data)
+
+                    self.max_rarity_level = 0
+                    for level in data:
+                        for item in level['items']:
+                            self.rarity_levels[item] = int(level['weight'])
+                            if int(level['weight']) > self.max_rarity_level:
+                                self.max_rarity_level = int(level['weight'])
+
+                    self.rarity_files += 1
+                except:
+                    pass
+
+        if not self.rarity_levels:
+            self.max_rarity_level = 1
 
     def get_image_size(self):
         image = None
@@ -133,11 +157,15 @@ class Mixer:
                                         skip = True
                                         break
                                     if e + '.png' in cleared_items:
-                                        print(f'{e}.png was excluded from {directory}')
                                         cleared_items.remove(e + '.png')
 
             if not skip and cleared_items:
-                item = random.choice(cleared_items)
+                weighted_items = {}
+                for item in cleared_items:
+                    weighted_items[item] = self.rarity_levels.get('.'.join(item.split('.')[:-1]), self.max_rarity_level)
+
+                item = random.choices(list(weighted_items.keys()), list(weighted_items.values()), k=1)[0]
+
                 layer = Image.open(self.get_absolute_path(f'{directory}/{item}'))
                 image = Image.alpha_composite(image, layer)
                 self.current_traits[directory] = '.'.join(item.split('.')[:-1])
@@ -166,3 +194,13 @@ class Mixer:
     def count_exception_rules(self):
         if self.exception_list != None:
             return len(self.exception_list)
+
+    def get_weights_with_items(self):
+        weights = sorted(set(self.rarity_levels.values()))
+        result = {}
+        for item in self.rarity_levels:
+            for weight in weights:
+                if self.rarity_levels[item] == weight:
+                    result[weight] = result.get(weight, []) + [item]
+
+        return result

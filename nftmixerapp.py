@@ -853,10 +853,25 @@ class Application(QMainWindow):
 
             exception_rules = self.mixer.count_exception_rules()
             exception_rules_error = f'<span style=\'color: {self.error_color}\'>Error while reading file!</span>' if self.mixer.exceptions_path else f'<span style=\'color: {self.warning_color}\'>Exceptions file not specified!</span>'
+            rarity_files = f'{self.mixer.rarity_files} / {len(self.mixer.data)}' if self.mixer.rarity_files else f'<span style=\'color: {self.warning_color}\'>{self.mixer.rarity_files} / {len(self.mixer.data)}</span>'
+
+            weights = self.mixer.get_weights_with_items()
+            available_weights = ''
+            for weight in weights:
+                items = len(weights[weight])
+                available_weights += f'<b>{weight}</b> -> <b>{items}</b> {"items" if items != 1 else "item"} | '
+
+            if not available_weights:
+                available_weights = f'<span style=\'color: {self.warning_color}\'><b>No weights available!</b></span>'
+            else:
+                available_weights = available_weights[:-3] # Cut out " | "
+
             self.summary_info.setText(
                 f'Total images: <b>{self.readable_number(self.mixer.total_images)}</b><br>'
                 f'Total possible combinations: <b>{self.readable_number(self.mixer.possible_combinations)}</b><br>'
                 f'Number of exception rules: <b>{exception_rules if exception_rules != None else exception_rules_error}</b><br>'
+                f'Number of rarity files: <b>{rarity_files}</b><br>'
+                f'Available weights: {available_weights}'
             )
 
     def update_generating_mode(self):
@@ -961,8 +976,6 @@ class FetchDataThread(QtCore.QThread):
             self.error.emit('Error while reading components path!')
         except LayersOrderFileError:
             self.error.emit('Error with layers order file!')
-        except RarityFileError:
-            self.error.emit('Error in one of rarity files!')
         else:
             self.finished.emit()
             self.imageSizeChanged.emit()
